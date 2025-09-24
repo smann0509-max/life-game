@@ -1,24 +1,269 @@
-# Compiled class file
-*.class
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>To-Do List Game</title>
+<style>
+  body {margin:0;font-family:'Trebuchet MS',sans-serif;background:linear-gradient(135deg,#dcefff,#f5f9e9);color:#333;display:flex;flex-direction:column;align-items:center;min-height:100vh;transition:background 1s;}
+  h1 {margin-top:20px;}
+  .container {display:flex;width:95%;justify-content:space-between;flex-wrap:wrap;}
+  .column {background:#ffffffcc;border-radius:12px;padding:15px;margin:10px;flex:1;min-width:250px;box-shadow:0 4px 6px rgba(0,0,0,0.1);}
+  .character canvas {width:120px;height:120px;border-radius:50%;background:#f0f0f0;border:3px solid #aee1cd;}
+  button {margin:5px;padding:8px 12px;border:none;border-radius:8px;cursor:pointer;background:#aee1cd;color:#333;font-weight:bold;}
+  button:hover { background:#7cc7aa;}
+  .bar {height:20px;background:#eee;border-radius:10px;overflow:hidden;margin:5px 0;}
+  .bar-fill {height:100%;background:#88c999;width:100%;transition:width 0.3s;}
+  ul {margin:5px 0;padding-left:15px;}
+  label, select, input[type=text] {display:block;margin-top:10px;width:100%;}
+  .modal {display:none;position:fixed;z-index:10;left:0;top:0;width:100%;height:100%;overflow:auto;background: rgba(0,0,0,0.4);}
+  .modal-content {background:#fff;margin:5% auto;padding:20px;border-radius:12px;width:600px;box-shadow:0 4px 8px rgba(0,0,0,0.2);display:flex;flex-wrap:wrap;gap:20px;}
+  .close {float:right;font-size:20px;font-weight:bold;cursor:pointer;}
+  .notification {position: fixed; top:10px; left:50%; transform:translateX(-50%); background: #222; color:white; padding:5px 10px; border-radius:5px; z-index:1000;}
+  .sparkle {position:absolute; border-radius:50%; pointer-events:none;}
+</style>
+</head>
+<body>
+<h1>🌿 To-Do List Game <button onclick="openSettings()">⚙️</button></h1>
+<div class="container">
+  <div class="column character">
+    <canvas id="avatarCanvas" width="120" height="120"></canvas>
+    <p><strong>Your Character</strong></p>
+    <p>XP: <span id="xp">0</span> | Level: <span id="level">1</span></p>
+    <div class="bar"><div id="xp-bar" class="bar-fill"></div></div>
+  </div>
 
-# Log file
-*.log
+  <div class="column">
+    <h2>💼 Work Tasks</h2>
+    <div id="work-tasks"></div>
 
-# BlueJ files
-*.ctxt
+    <h2>📝 Job Tasks</h2>
+    <div id="job-tasks"></div>
 
-# Mobile Tools for Java (J2ME)
-.mtj.tmp/
+    <h2>🗒️ General Tasks</h2>
+    <div id="general-tasks"></div>
+  </div>
 
-# Package Files #
-*.jar
-*.war
-*.nar
-*.ear
-*.zip
-*.tar.gz
-*.rar
+  <div class="column">
+    <h2>🌱 Staying Alive</h2>
+    <div>Fun <button onclick="refillNeed('fun')">Do Fun Thing</button>
+      <div class="bar"><div id="fun-bar" class="bar-fill"></div></div>
+    </div>
+    <div>Hydrate <button onclick="refillNeed('hydrate')">Drink Water</button>
+      <div class="bar"><div id="hydrate-bar" class="bar-fill"></div></div>
+    </div>
+    <div>Exercise <button onclick="refillNeed('exercise')">Workout</button>
+      <div class="bar"><div id="exercise-bar" class="bar-fill"></div></div>
+    </div>
+    <div>Eat <button onclick="refillNeed('eat')">Eat Food</button>
+      <div class="bar"><div id="eat-bar" class="bar-fill"></div></div>
+    </div>
+    <div>Sleep <button onclick="refillSleep()">Rest (Once per Day)</button>
+      <div class="bar"><div id="sleep-bar" class="bar-fill"></div></div>
+    </div>
+    <div>Bible Time <button onclick="refillNeed('bible')">Read Bible</button>
+      <div class="bar"><div id="bible-bar" class="bar-fill"></div></div>
+    </div>
+  </div>
+</div>
 
-# virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
-hs_err_pid*
-replay_pid*
+<div class="column" style="width:95%;">
+  <h3>🏆 Prizes</h3>
+  <ul id="prize-list"></ul>
+</div>
+
+<div id="settingsModal" class="modal">
+  <div class="modal-content">
+    <span class="close" onclick="closeSettings()">&times;</span>
+    <div style="flex:1; min-width:250px;">
+      <h3>🎨 Avatar Editor</h3>
+      <label>Hair Style:</label><select id="hair-style"></select>
+      <label>Hair Color:</label><select id="hair-color"></select>
+      <label>Eye Color:</label><select id="eye-color"></select>
+      <label>Shirt Color:</label><select id="shirt-color"></select>
+      <label>Background:</label><select id="background"></select>
+    </div>
+    <div style="flex:1; min-width:250px;">
+      <h3>🗂️ Edit Tasks</h3>
+      <label>Work Tasks (comma separated):</label><input type="text" id="work-edit">
+      <label>Job Tasks (comma separated):</label><input type="text" id="job-edit">
+      <label>General Tasks (comma separated):</label><input type="text" id="general-edit">
+      <button onclick="saveSettings()">Save Settings</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ====== Variables ======
+let xp=0, level=1, sleepDone=false;
+let needs={fun:100,hydrate:100,exercise:100,eat:100,sleep:100,bible:100};
+const prizeThresholds=[50,100,200,400];
+const prizes=["🍫 Chocolate Treat","🎉 Party Hat","🌻 Garden Patch","🌍 Mini Adventure!"];
+const unlocked=[];
+let workTasks=["Quotes for Biblio","Intimacy Deficit","Join Meetings"];
+let jobTasks=["Apply for Jobs","Update CV"];
+let generalTasks=["Clean Room","Organize Notes"];
+let avatarOptions={hairStyle:"short",hairColor:"blonde",eyeColor:"blue",shirtColor:"red",background:"abstract"};
+
+// Avatar options
+const hairStyles=["short","bob","ponytail","long","bun","pixie","braids"];
+const hairColors=["blonde","brown","black","red","pink","blue","green"];
+const eyeColors=["blue","green","brown"];
+const shirtColors=["red","blue","green","yellow","purple"];
+const backgrounds=["abstract","nature","pastel"];
+
+// ====== Populate Avatar Dropdowns ======
+function populateAvatarOptions(){
+ hairStyles.forEach(h=>document.getElementById('hair-style').appendChild(new Option(h,h)));
+ hairColors.forEach(h=>document.getElementById('hair-color').appendChild(new Option(h,h)));
+ eyeColors.forEach(e=>document.getElementById('eye-color').appendChild(new Option(e,e)));
+ shirtColors.forEach(s=>document.getElementById('shirt-color').appendChild(new Option(s,s)));
+ backgrounds.forEach(b=>document.getElementById('background').appendChild(new Option(b,b)));
+}
+
+// ====== Tasks Rendering ======
+function renderTasks(){
+ let workDiv=document.getElementById('work-tasks'); workDiv.innerHTML="";
+ workTasks.forEach(t=>{let btn=document.createElement('button');btn.innerText=t;btn.onclick=()=>completeTask(10);workDiv.appendChild(btn);});
+ let jobDiv=document.getElementById('job-tasks'); jobDiv.innerHTML="";
+ jobTasks.forEach(t=>{let btn=document.createElement('button');btn.innerText=t;btn.onclick=()=>completeTask(15);jobDiv.appendChild(btn);});
+ let genDiv=document.getElementById('general-tasks'); genDiv.innerHTML="";
+ generalTasks.forEach(t=>{let btn=document.createElement('button');btn.innerText=t;btn.onclick=()=>completeTask(5);genDiv.appendChild(btn);});
+}
+
+// ====== XP, Prizes & Display ======
+function completeTask(amount){
+  xp+=amount;
+  createSparkles('avatarCanvas');
+  if(xp>=level*100){
+    xp-=level*100; level++;
+    showNotification("🎉 Level Up! Level "+level);
+  }
+  updateDisplay();
+}
+
+function refillNeed(need){needs[need]=Math.min(100,needs[need]+25);createSparkles('avatarCanvas');updateDisplay();}
+function refillSleep(){if(!sleepDone){needs.sleep=100;sleepDone=true;createSparkles('avatarCanvas');updateDisplay();}else{showNotification("You can only rest once per day.");}}
+
+function updateDisplay(){
+ document.getElementById('xp').innerText=xp;
+ document.getElementById('level').innerText=level;
+ document.getElementById('xp-bar').style.width=Math.min(100,(xp/(level*100)*100))+'%';
+ for(let n in needs){document.getElementById(n+'-bar').style.width=needs[n]+'%';}
+ updatePrizes();
+ drawAvatar('avatarCanvas',avatarOptions);
+}
+
+function updatePrizes(){
+ let prizeList=document.getElementById('prize-list'); prizeList.innerHTML="";
+ prizeThresholds.forEach((t,i)=>{
+   if(xp>=t&&!unlocked.includes(i)){unlocked.push(i);showNotification("🏆 You unlocked: "+prizes[i]);}
+   if(unlocked.includes(i)){let li=document.createElement('li');li.textContent=prizes[i];prizeList.appendChild(li);}
+ });
+}
+
+// ====== Avatar Drawing ======
+function drawAvatar(canvasId,options){
+ const canvas=document.getElementById(canvasId); if(!canvas) return;
+ const ctx=canvas.getContext('2d'); ctx.clearRect(0,0,canvas.width,canvas.height);
+ ctx.fillStyle=options.background==='nature'?'#d0f0c0':options.background==='pastel'?'#ffe0f0':'#e0e0ff';
+ ctx.fillRect(0,0,canvas.width,canvas.height);
+ // Hair
+ ctx.fillStyle=getHairColor(options.hairColor);
+ if(options.hairStyle==='long'){ctx.beginPath();ctx.ellipse(60,70,50,60,0,0,2*Math.PI);ctx.fill();}
+ else if(options.hairStyle==='bob'){ctx.beginPath();ctx.ellipse(60,70,45,40,0,0,2*Math.PI);ctx.fill();}
+ else if(options.hairStyle==='ponytail'){ctx.beginPath();ctx.ellipse(60,110,20,30,0,0,2*Math.PI);ctx.fill();}
+ else if(options.hairStyle==='bun'){ctx.beginPath();ctx.arc(60,25,20,0,2*Math.PI);ctx.fill();}
+ else if(options.hairStyle==='pixie'){ctx.beginPath();ctx.ellipse(60,50,45,30,0,0,2*Math.PI);ctx.fill();}
+ else if(options.hairStyle==='braids'){ctx.beginPath();ctx.ellipse(30,110,15,25,0,0,2*Math.PI);ctx.fill();ctx.beginPath();ctx.ellipse(90,110,15,25,0,0,2*Math.PI);ctx.fill();}
+ else{ctx.beginPath();ctx.ellipse(60,50,40,30,0,0,2*Math.PI);ctx.fill();}
+ // Face
+ ctx.fillStyle="#ffdbac";ctx.beginPath();ctx.arc(60,60,40,0,2*Math.PI);ctx.fill();
+ // Eyes
+ ctx.fillStyle=options.eyeColor;ctx.beginPath();ctx.arc(45,60,5,0,2*Math.PI);ctx.arc(75,60,5,0,2*Math.PI);ctx.fill();
+ // Shirt
+ ctx.fillStyle=options.shirtColor;ctx.fillRect(30,100,60,30);
+}
+
+function getHairColor(c){const colors={blonde:"#faf0be",brown:"#8b4513",black:"#333",red:"#e32636",pink:"#ff69b4",blue:"#4682b4",green:"#3cb371"};return colors[c]||"#000";}
+
+// ====== Sparkles ======
+function createSparkles(parentId){
+  const parent=document.getElementById(parentId);
+  for(let i=0;i<15;i++){
+    const sp=document.createElement('div'); sp.className='sparkle';
+    sp.style.left=Math.random()*parent.offsetWidth+'px'; sp.style.top=Math.random()*parent.offsetHeight+'px';
+    sp.style.width=Math.random()*8+4+'px'; sp.style.height=sp.style.width; sp.style.background='gold';
+    document.body.appendChild(sp);
+    const duration=Math.random()*800+400;
+    sp.animate([{transform:'translateY(0px)',opacity:1},{transform:`translateY(-${Math.random()*30+20}px)`,opacity:0}],{duration:duration});
+    setTimeout(()=>sp.remove(),duration);
+  }
+}
+
+// ====== Notifications ======
+function showNotification(msg){
+  const note=document.createElement('div'); note.className='notification'; note.innerText=msg; document.body.appendChild(note);
+  setTimeout(()=>note.remove(),3000);
+}
+
+// ====== Background Dynamics ======
+function updateBackground(){
+ const hour=new Date().getHours();
+ if(hour<6||hour>=20) document.body.style.background='linear-gradient(135deg,#0d1b2a,#1b263b)';
+ else if(hour<12) document.body.style.background='linear-gradient(135deg,#dcefff,#f5f9e9)';
+ else if(hour<18) document.body.style.background='linear-gradient(135deg,#a8edea,#fed6e3)';
+ else document.body.style.background='linear-gradient(135deg,#fbc2eb,#a6c1ee)';
+ // Seasonal Christmas sparkles
+ if(new Date().getMonth()===11 && !document.getElementById('xmas-sparkle')){
+   const xmas=document.createElement('div'); xmas.id='xmas-sparkle'; xmas.innerText='🎄';
+   xmas.style.position='fixed'; xmas.style.left=Math.random()*window.innerWidth+'px';
+   xmas.style.top=Math.random()*window.innerHeight+'px'; xmas.style.fontSize='24px';
+   document.body.appendChild(xmas); setTimeout(()=>xmas.remove(),10000);
+ }
+}
+setInterval(updateBackground,60000); updateBackground();
+
+// ====== Life Decay ======
+function decayNeeds(){
+ needs.hydrate=Math.max(0,needs.hydrate-1.2);
+ needs.eat=Math.max(0,needs.eat-0.5);
+ needs.exercise=Math.max(0,needs.exercise-0.2);
+ needs.fun=Math.max(0,needs.fun-0.3);
+ needs.bible=Math.max(0,needs.bible-0.2);
+ if(!sleepDone){needs.sleep=Math.max(0,needs.sleep-0.05);}
+ updateDisplay();
+}
+
+// ====== Settings ======
+function openSettings(){
+ document.getElementById('settingsModal').style.display='block';
+ document.getElementById('work-edit').value=workTasks.join(',');
+ document.getElementById('job-edit').value=jobTasks.join(',');
+ document.getElementById('general-edit').value=generalTasks.join(',');
+ document.getElementById('hair-style').value=avatarOptions.hairStyle;
+ document.getElementById('hair-color').value=avatarOptions.hairColor;
+ document.getElementById('eye-color').value=avatarOptions.eyeColor;
+ document.getElementById('shirt-color').value=avatarOptions.shirtColor;
+ document.getElementById('background').value=avatarOptions.background;
+}
+function closeSettings(){document.getElementById('settingsModal').style.display='none';}
+function saveSettings(){
+ avatarOptions.hairStyle=document.getElementById('hair-style').value;
+ avatarOptions.hairColor=document.getElementById('hair-color').value;
+ avatarOptions.eyeColor=document.getElementById('eye-color').value;
+ avatarOptions.shirtColor=document.getElementById('shirt-color').value;
+ avatarOptions.background=document.getElementById('background').value;
+ workTasks=document.getElementById('work-edit').value.split(',').map(s=>s.trim());
+ jobTasks=document.getElementById('job-edit').value.split(',').map(s=>s.trim());
+ generalTasks=document.getElementById('general-edit').value.split(',').map(s=>s.trim());
+ renderTasks(); updateDisplay(); closeSettings();
+}
+
+// ====== Initialization ======
+populateAvatarOptions();
+document.querySelectorAll('select').forEach(sel=>sel.addEventListener('change',()=>{drawAvatar('avatarCanvas',avatarOptions);}));
+document.getElementById('avatarCanvas').addEventListener('click',()=>{createSparkles('avatarCanvas');showNotification('You interacted with your avatar!');});
+setInterval(decayNeeds,6000); renderTasks(); updateDisplay();
+</script>
+</body>
+</html>
